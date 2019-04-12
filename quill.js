@@ -27,6 +27,7 @@ import Underline from './formats/underline';
 import Formula from './formats/formula';
 import Image from './formats/image';
 import Video from './formats/video';
+import VideoFile from './formats/videofile';
 
 import CodeBlock, { Code as InlineCode } from './formats/code';
 
@@ -91,6 +92,7 @@ Quill.register(
     'formats/formula': Formula,
     'formats/image': Image,
     'formats/video': Video,
+    'formats/videofile': VideoFile,
 
     'modules/syntax': Syntax,
     'modules/table': Table,

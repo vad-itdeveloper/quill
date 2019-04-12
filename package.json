@@ -2,7 +2,7 @@
   "name": "it-quill",
   "version": "2.0.0-it-dev.0",
   "description": "Fork of quill powerful, rich text editor",
-  "author": "Jason Chen <jhchen7@gmail.com>",
+  "author": "vad-itdeveloper",
   "homepage": "http://quilljs.com",
   "main": "dist/quill.js",
   "files": [
