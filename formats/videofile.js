@@ -6,10 +6,10 @@ const ATTRIBUTES = ['height', 'width'];
 class VideoFile extends BlockEmbed {
   static create(value) {
     const node = super.create(value);
+    node.setAttribute('src', this.sanitize(value));
     node.setAttribute('width', '100%');
 		node.setAttribute('height', '100%');
 		node.setAttribute('controls', true);
-    node.setAttribute('src', this.sanitize(value));
     return node;
   }
 

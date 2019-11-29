@@ -27,6 +27,7 @@ import strikeIcon from '../assets/icons/strike.svg';
 import tableIcon from '../assets/icons/table.svg';
 import underlineIcon from '../assets/icons/underline.svg';
 import videoIcon from '../assets/icons/video.svg';
+import videofileIcon from '../assets/icons/video.svg';
 
 export default {
   align: {
@@ -71,4 +72,5 @@ export default {
   table: tableIcon,
   underline: underlineIcon,
   video: videoIcon,
+  videofile: videofileIcon
 };

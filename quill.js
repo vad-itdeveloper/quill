@@ -43,6 +43,7 @@ import Tooltip from './ui/tooltip';
 
 import BubbleTheme from './themes/bubble';
 import SnowTheme from './themes/snow';
+//import { ImageResize } from 'quill-image-resize';
 
 Quill.register(
   {

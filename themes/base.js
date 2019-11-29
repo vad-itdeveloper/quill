@@ -182,6 +182,45 @@ BaseTheme.DEFAULTS = extend(true, {}, Theme.DEFAULTS, {
         video() {
           this.quill.theme.tooltip.edit('video');
         },
+        videofile() {
+           let fileInput = this.container.querySelector('input.ql-videofile[type=file]');
+           if (fileInput == null) {
+             fileInput = document.createElement('input');
+             fileInput.setAttribute('type', 'file');
+             fileInput.setAttribute(
+               'accept',
+               'video/mp4'
+            );
+            fileInput.classList.add('ql-videofile');
+            fileInput.addEventListener('change', () => {
+              const range = this.quill.getSelection(true);
+              // файл для передачи на сервер
+              console.log('upload filename ' + fileInput.files[0].name);
+              console.log('file size ' + fileInput.files[0].size);
+              console.log('file type ' + fileInput.files[0].type);
+              
+              // TODO: передать файл на сервер приложений
+              var success = true //uploadToServer(fileInput.files[0]);
+              var videoFileRef = ''
+              // получить ссылку на загруженный файл
+              if (success) {
+                videoFileRef = 'https://m.it.ua/s00/ws/GetFile.ashx?file=_Z4DYZG0YD.mp4&folder=DOCS' //getFileRef(fileInput.files[0]);
+              }
+              // Добавить тег video со ссылкой
+              const index = range.index + range.length;
+              this.quill.insertEmbed(
+                index,
+                'videofile',
+                videoFileRef,
+                Emitter.sources.USER
+              )
+
+              fileInput.value = '';
+            });
+            this.container.appendChild(fileInput);
+          }
+          fileInput.click();
+        }
       },
     },
   },
