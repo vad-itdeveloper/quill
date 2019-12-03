@@ -1,13 +1,13 @@
 import clone from 'clone';
 import equal from 'deep-equal';
 import extend from 'extend';
-import Delta from 'quill-delta';
-import DeltaOp from 'quill-delta/lib/op';
+import Delta, { AttributeMap } from 'quill-delta';
 import { LeafBlot } from 'parchment';
+import { Range } from './selection';
 import CursorBlot from '../blots/cursor';
-import Block, { bubbleFormats } from '../blots/block';
+import Block, { BlockEmbed, bubbleFormats } from '../blots/block';
 import Break from '../blots/break';
-import TextBlot from '../blots/text';
+import TextBlot, { escapeText } from '../blots/text';
 
 const ASCII = /^[ -~]*$/;
 
@@ -33,7 +33,11 @@ class Editor {
             consumeNextNewline = false;
             text = text.slice(0, -1);
           }
-          if (index >= scrollLength && !text.endsWith('\n')) {
+          if (
+            (index >= scrollLength ||
+              this.scroll.descendant(BlockEmbed, index)[0]) &&
+            !text.endsWith('\n')
+          ) {
             consumeNextNewline = true;
           }
           this.scroll.insertAt(index, text);
@@ -43,7 +47,7 @@ class Editor {
             const [leaf] = line.descendant(LeafBlot, offset);
             formats = extend(formats, bubbleFormats(leaf));
           }
-          attributes = DeltaOp.attributes.diff(formats, attributes) || {};
+          attributes = AttributeMap.diff(formats, attributes) || {};
         } else if (typeof op.insert === 'object') {
           const key = Object.keys(op.insert)[0]; // There should only be one key
           if (key == null) return index;
@@ -188,7 +192,7 @@ class Editor {
     return this.applyDelta(delta);
   }
 
-  update(change, mutations = [], cursorIndex = undefined) {
+  update(change, mutations = [], selectionInfo = undefined) {
     const oldDelta = this.delta;
     if (
       mutations.length === 1 &&
@@ -203,9 +207,13 @@ class Editor {
       const oldValue = mutations[0].oldValue.replace(CursorBlot.CONTENTS, '');
       const oldText = new Delta().insert(oldValue);
       const newText = new Delta().insert(textBlot.value());
+      const relativeSelectionInfo = selectionInfo && {
+        oldRange: shiftRange(selectionInfo.oldRange, -index),
+        newRange: shiftRange(selectionInfo.newRange, -index),
+      };
       const diffDelta = new Delta()
         .retain(index)
-        .concat(oldText.diff(newText, cursorIndex));
+        .concat(oldText.diff(newText, relativeSelectionInfo));
       change = diffDelta.reduce((delta, op) => {
         if (op.insert) {
           return delta.insert(op.insert, formats);
@@ -216,7 +224,7 @@ class Editor {
     } else {
       this.delta = this.getDelta();
       if (!change || !equal(oldDelta.compose(change), this.delta)) {
-        change = oldDelta.diff(this.delta, cursorIndex);
+        change = oldDelta.diff(this.delta, selectionInfo);
       }
     }
     return change;
@@ -234,21 +242,15 @@ function convertListHTML(items, lastIndent, types) {
   const [{ child, offset, length, indent, type }, ...rest] = items;
   const [tag, attribute] = getListType(type);
   if (indent > lastIndent) {
-    types.push(tag);
+    types.push(type);
     return `<${tag}><li${attribute}>${convertHTML(
       child,
       offset,
       length,
     )}${convertListHTML(rest, indent, types)}`;
-  } else if (indent === lastIndent) {
+  }
+  if (indent === lastIndent) {
     return `</li><li${attribute}>${convertHTML(
-      child,
-      offset,
-      length,
-    )}${convertListHTML(rest, indent, types)}`;
-  } else if (indent === lastIndent - 1) {
-    const [endTag] = getListType(types.pop());
-    return `</li></${endTag}></li><li${attribute}>${convertHTML(
       child,
       offset,
       length,
@@ -261,9 +263,11 @@ function convertListHTML(items, lastIndent, types) {
 function convertHTML(blot, index, length, isRoot = false) {
   if (typeof blot.html === 'function') {
     return blot.html(index, length);
-  } else if (blot instanceof TextBlot) {
-    return blot.value().slice(index, index + length);
-  } else if (blot.children) {
+  }
+  if (blot instanceof TextBlot) {
+    return escapeText(blot.value().slice(index, index + length));
+  }
+  if (blot.children) {
     // TODO fix API
     if (blot.statics.blotName === 'list-container') {
       const items = [];
@@ -288,6 +292,10 @@ function convertHTML(blot, index, length, isRoot = false) {
     }
     const { outerHTML, innerHTML } = blot.domNode;
     const [start, end] = outerHTML.split(`>${innerHTML}<`);
+    // TODO cleanup
+    if (start === '<table') {
+      return `<table style="border: 1px solid #000;">${parts.join('')}<${end}`;
+    }
     return `${start}>${parts.join('')}<${end}`;
   }
   return blot.domNode.outerHTML;
@@ -329,6 +337,10 @@ function normalizeDelta(delta) {
     }
     return normalizedDelta.push(op);
   }, new Delta());
+}
+
+function shiftRange({ index, length }, amount) {
+  return new Range(index + amount, length);
 }
 
 export default Editor;

@@ -115,7 +115,8 @@ class BaseTheme extends Theme {
           fillSelect(select, ALIGNS);
         }
         return new IconPicker(select, icons.align);
-      } else if (
+      }
+      if (
         select.classList.contains('ql-background') ||
         select.classList.contains('ql-color')
       ) {
@@ -181,6 +182,46 @@ BaseTheme.DEFAULTS = extend(true, {}, Theme.DEFAULTS, {
         video() {
           this.quill.theme.tooltip.edit('video');
         },
+        videofile() {
+					this.quill.theme.tooltip.edit('videofile');
+          //  let fileInput = this.container.querySelector('input.ql-videofile[type=file]');
+          //  if (fileInput == null) {
+          //    fileInput = document.createElement('input');
+          //    fileInput.setAttribute('type', 'file');
+          //    fileInput.setAttribute(
+          //      'accept',
+          //      'video/mp4'
+          //   );
+          //   fileInput.classList.add('ql-videofile');
+          //   fileInput.addEventListener('change', () => {
+          //     const range = this.quill.getSelection(true);
+          //     // файл для передачи на сервер
+          //     console.log('upload filename ' + fileInput.files[0].name);
+          //     console.log('file size ' + fileInput.files[0].size);
+          //     console.log('file type ' + fileInput.files[0].type);
+              
+          //     // TODO: передать файл на сервер приложений
+          //     var success = true //uploadToServer(fileInput.files[0]);
+          //     var videoFileRef = ''
+          //     // получить ссылку на загруженный файл
+          //     if (success) {
+          //       videoFileRef = 'https://m.it.ua/s00/ws/GetFile.ashx?file=_Z4DYZG0YD.mp4&folder=DOCS' //getFileRef(fileInput.files[0]);
+          //     }
+          //     // Добавить тег video со ссылкой
+          //     const index = range.index + range.length;
+          //     this.quill.insertEmbed(
+          //       index,
+          //       'videofile',
+          //       videoFileRef,
+          //       Emitter.sources.USER
+          //     )
+
+          //     fileInput.value = '';
+          //   });
+          //   this.container.appendChild(fileInput);
+          // }
+          // fileInput.click();
+        }
       },
     },
   },
@@ -272,7 +313,24 @@ class BaseTooltip extends Tooltip {
           this.quill.setSelection(index + 2, Emitter.sources.USER);
         }
         break;
-      }
+			}
+			case 'videofile':
+					if (!value) break;
+					const range = this.quill.getSelection(true);
+					if (range != null) {
+						const index = range.index + range.length;
+						this.quill.insertEmbed(
+							index,
+							this.root.getAttribute('data-mode'),
+							value,
+							Emitter.sources.USER,
+						);
+						if (this.root.getAttribute('data-mode') === 'videofile') {
+							this.quill.insertText(index + 1, ' ', Emitter.sources.USER);
+						}
+						this.quill.setSelection(index + 2, Emitter.sources.USER);
+					}
+				break;
       default:
     }
     this.textbox.value = '';

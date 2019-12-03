@@ -1,8 +1,7 @@
 import clone from 'clone';
 import equal from 'deep-equal';
 import extend from 'extend';
-import Delta from 'quill-delta';
-import DeltaOp from 'quill-delta/lib/op';
+import Delta, { AttributeMap } from 'quill-delta';
 import { EmbedBlot, Scope, TextBlot } from 'parchment';
 import Quill from '../core/quill';
 import logger from '../core/logger';
@@ -260,10 +259,16 @@ Keyboard.DEFAULTS = {
       format: ['list'],
       empty: true,
       handler(range, context) {
-        this.quill.format('list', false, Quill.sources.USER);
+        const formats = { list: false };
         if (context.format.indent) {
-          this.quill.format('indent', false, Quill.sources.USER);
+          formats.indent = false;
         }
+        this.quill.formatLine(
+          range.index,
+          range.length,
+          formats,
+          Quill.sources.USER,
+        );
       },
     },
     'checklist enter': {
@@ -316,6 +321,7 @@ Keyboard.DEFAULTS = {
     },
     'table enter': {
       key: 'Enter',
+      shiftKey: null,
       format: ['table'],
       handler(range) {
         const module = this.quill.getModule('table');
@@ -341,8 +347,23 @@ Keyboard.DEFAULTS = {
         }
       },
     },
+    'table tab': {
+      key: 'Tab',
+      shiftKey: null,
+      format: ['table'],
+      handler(range, context) {
+        const { event, line: cell } = context;
+        const offset = cell.offset(this.quill.scroll);
+        if (event.shiftKey) {
+          this.quill.setSelection(offset - 1, Quill.sources.USER);
+        } else {
+          this.quill.setSelection(offset + cell.length(), Quill.sources.USER);
+        }
+      },
+    },
     'list autofill': {
       key: ' ',
+      shiftKey: null,
       collapsed: true,
       format: {
         list: false,
@@ -433,13 +454,10 @@ function handleBackspace(range, context) {
   if (context.offset === 0) {
     const [prev] = this.quill.getLine(range.index - 1);
     if (prev != null) {
-      if (prev.statics.blotName === 'table') {
-        this.quill.setSelection(range.index - 1, Quill.sources.USER);
-        return;
-      } else if (prev.length() > 1) {
+      if (prev.length() > 1 || prev.statics.blotName === 'table') {
         const curFormats = line.formats();
         const prevFormats = this.quill.getFormat(range.index - 1, 1);
-        formats = DeltaOp.attributes.diff(curFormats, prevFormats) || {};
+        formats = AttributeMap.diff(curFormats, prevFormats) || {};
       }
     }
   }
@@ -467,13 +485,9 @@ function handleDelete(range, context) {
   if (context.offset >= line.length() - 1) {
     const [next] = this.quill.getLine(range.index + 1);
     if (next) {
-      if (next.statics.blotName === 'table') {
-        this.quill.setSelection(range.index + 1, Quill.sources.USER);
-        return;
-      }
       const curFormats = line.formats();
       const nextFormats = this.quill.getFormat(range.index, 1);
-      formats = DeltaOp.attributes.diff(curFormats, nextFormats) || {};
+      formats = AttributeMap.diff(curFormats, nextFormats) || {};
       nextLength = next.length();
     }
   }
@@ -494,7 +508,7 @@ function handleDeleteRange(range) {
   if (lines.length > 1) {
     const firstFormats = lines[0].formats();
     const lastFormats = lines[lines.length - 1].formats();
-    formats = DeltaOp.attributes.diff(lastFormats, firstFormats) || {};
+    formats = AttributeMap.diff(lastFormats, firstFormats) || {};
   }
   this.quill.deleteText(range, Quill.sources.USER);
   if (Object.keys(formats).length > 0) {
@@ -684,9 +698,11 @@ function tableSide(table, row, cell, offset) {
       return offset === 0 ? -1 : 1;
     }
     return cell.prev == null ? -1 : 1;
-  } else if (row.prev == null) {
+  }
+  if (row.prev == null) {
     return -1;
-  } else if (row.next == null) {
+  }
+  if (row.next == null) {
     return 1;
   }
   return null;

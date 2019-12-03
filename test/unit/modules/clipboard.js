@@ -9,42 +9,52 @@ describe('Clipboard', function() {
       this.quill.setSelection(2, 5);
     });
 
-    it('paste', function(done) {
-      this.quill.clipboard.onCapturePaste({
-        clipboardData: {
-          getData: () => {
-            return '<strong>|</strong>';
+    describe('paste', function() {
+      beforeAll(function() {
+        this.clipboardEvent = {
+          clipboardData: {
+            getData: type =>
+              type === 'text/html' ? '<strong>|</strong>' : '|',
           },
-        },
-        preventDefault: () => {},
+          preventDefault: () => {},
+        };
       });
-      setTimeout(() => {
-        expect(this.quill.root).toEqualHTML(
-          '<p>01<strong>|</strong><em>7</em>8</p>',
-        );
-        expect(this.quill.getSelection()).toEqual(new Range(3));
-        done();
-      }, 2);
-    });
 
-    it('selection-change', function(done) {
-      const handler = {
-        change() {},
-      };
-      spyOn(handler, 'change');
-      this.quill.on('selection-change', handler.change);
-      this.quill.clipboard.onCapturePaste({
-        clipboardData: {
-          getData: () => {
-            return '0';
-          },
-        },
-        preventDefault: () => {},
+      it('pastes html data', function(done) {
+        this.quill.clipboard.onCapturePaste(this.clipboardEvent);
+        setTimeout(() => {
+          expect(this.quill.root).toEqualHTML(
+            '<p>01<strong>|</strong><em>7</em>8</p>',
+          );
+          expect(this.quill.getSelection()).toEqual(new Range(3));
+          done();
+        }, 2);
       });
-      setTimeout(function() {
-        expect(handler.change).not.toHaveBeenCalled();
-        done();
-      }, 2);
+
+      it('pastes html data if present with file', function(done) {
+        const upload = spyOn(this.quill.uploader, 'upload');
+        this.quill.clipboard.onCapturePaste(
+          Object.assign({}, this.clipboardEvent, { files: ['file '] }),
+        );
+        setTimeout(() => {
+          expect(upload).not.toHaveBeenCalled();
+          expect(this.quill.root).toEqualHTML(
+            '<p>01<strong>|</strong><em>7</em>8</p>',
+          );
+          expect(this.quill.getSelection()).toEqual(new Range(3));
+          done();
+        }, 2);
+      });
+
+      it('does not fire selection-change', function(done) {
+        const change = jasmine.createSpy('change');
+        this.quill.on('selection-change', change);
+        this.quill.clipboard.onCapturePaste(this.clipboardEvent);
+        setTimeout(function() {
+          expect(change).not.toHaveBeenCalled();
+          done();
+        }, 2);
+      });
     });
 
     it('dangerouslyPasteHTML(html)', function() {
@@ -118,6 +128,17 @@ describe('Clipboard', function() {
       expect(delta).toEqual(new Delta().insert('0\n1\n2\n3\n\n4\n\n5'));
     });
 
+    it('empty block', function() {
+      const html = '<h1>Test</h1><h2></h2><p>Body</p>';
+      const delta = this.clipboard.convert({ html });
+      expect(delta).toEqual(
+        new Delta()
+          .insert('Test\n', { header: 1 })
+          .insert('\n', { header: 2 })
+          .insert('Body'),
+      );
+    });
+
     it('mixed inline and block', function() {
       const delta = this.clipboard.convert({
         html: '<div>One<div>Two</div></div>',
@@ -186,13 +207,13 @@ describe('Clipboard', function() {
         html:
           '<table>' +
           '<thead><tr><td>A1</td><td>A2</td><td>A3</td></tr></thead>' +
-          '<tbody><tr><td>B1</td><td>B2</td><td>B3</td></tr></tbody>' +
+          '<tbody><tr><td>B1</td><td></td><td>B3</td></tr></tbody>' +
           '</table>',
       });
       expect(delta).toEqual(
         new Delta()
           .insert('A1\nA2\nA3\n', { table: 1 })
-          .insert('B1\nB2\nB3\n', { table: 2 }),
+          .insert('B1\n\nB3\n', { table: 2 }),
       );
     });
 
@@ -262,11 +283,20 @@ describe('Clipboard', function() {
       expect(delta).toEqual(expected);
     });
 
+    it('does not execute javascript', function() {
+      window.unsafeFunction = jasmine.createSpy('unsafeFunction');
+      const html =
+        "<img src='/assets/favicon.png' onload='window.unsafeFunction()'/>";
+      this.clipboard.convert({ html });
+      expect(window.unsafeFunction).not.toHaveBeenCalled();
+      delete window.unsafeFunction;
+    });
+
     it('xss', function() {
       const delta = this.clipboard.convert({
         html: '<script>alert(2);</script>',
       });
-      expect(delta).toEqual(new Delta().insert('alert(2);'));
+      expect(delta).toEqual(new Delta().insert(''));
     });
   });
 });

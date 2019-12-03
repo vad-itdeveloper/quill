@@ -1,4 +1,4 @@
-import { ContainerBlot, LeafBlot, Scope } from 'parchment';
+import { LeafBlot, Scope } from 'parchment';
 import clone from 'clone';
 import equal from 'deep-equal';
 import Emitter from './emitter';
@@ -27,7 +27,7 @@ class Selection {
     this.handleComposition();
     this.handleDragging();
     this.emitter.listenDOM('selectionchange', document, () => {
-      if (!this.mouseDown) {
+      if (!this.mouseDown && !this.composing) {
         setTimeout(this.update.bind(this, Emitter.sources.USER), 1);
       }
     });
@@ -38,12 +38,17 @@ class Selection {
       if (native.start.node === this.cursor.textNode) return; // cursor.restore() will handle
       this.emitter.once(Emitter.events.SCROLL_UPDATE, () => {
         try {
-          this.setNativeRange(
-            native.start.node,
-            native.start.offset,
-            native.end.node,
-            native.end.offset,
-          );
+          if (
+            this.root.contains(native.start.node) &&
+            this.root.contains(native.end.node)
+          ) {
+            this.setNativeRange(
+              native.start.node,
+              native.start.offset,
+              native.end.node,
+              native.end.offset,
+            );
+          }
           this.update(Emitter.sources.SILENT);
         } catch (ignored) {
           // ignore
@@ -63,8 +68,10 @@ class Selection {
   handleComposition() {
     this.root.addEventListener('compositionstart', () => {
       this.composing = true;
+      this.scroll.batchStart();
     });
     this.root.addEventListener('compositionend', () => {
+      this.scroll.batchEnd();
       this.composing = false;
       if (this.cursor.parent) {
         const range = this.cursor.restore();
@@ -202,10 +209,11 @@ class Selection {
       const index = blot.offset(this.scroll);
       if (offset === 0) {
         return index;
-      } else if (blot instanceof ContainerBlot) {
-        return index + blot.length();
       }
-      return index + blot.index(node, offset);
+      if (blot instanceof LeafBlot) {
+        return index + blot.index(node, offset);
+      }
+      return index + blot.length();
     });
     const end = Math.min(Math.max(...indexes), this.scroll.length() - 1);
     const start = Math.min(end, ...indexes);
@@ -374,7 +382,15 @@ class Selection {
         nativeRange.native.collapsed &&
         nativeRange.start.node !== this.cursor.textNode
       ) {
-        this.cursor.restore();
+        const range = this.cursor.restore();
+        if (range) {
+          this.setNativeRange(
+            range.startNode,
+            range.startOffset,
+            range.endNode,
+            range.endOffset,
+          );
+        }
       }
       const args = [
         Emitter.events.SELECTION_CHANGE,

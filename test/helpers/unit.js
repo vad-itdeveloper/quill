@@ -36,13 +36,26 @@ function compareApproximately(actual, expected, tolerance) {
   };
 }
 
-function compareHTML(actual, expected, ignoreClassId) {
+function compareHTML(actual, expected, ignoreClassId, ignoreUI = true) {
   const [div1, div2] = [actual, expected].map(function(html) {
     if (html instanceof HTMLElement) {
       html = html.innerHTML;
     }
     const container = document.createElement('div');
     container.innerHTML = html.replace(/\n\s*/g, '');
+    // Heuristic for if DOM 'fixed' our input HTML
+    if (
+      container.innerHTML.replace(/\s/g, '').length !==
+      html.replace(/\s/g, '').length
+    ) {
+      console.error('Invalid markup', html); // eslint-disable-line no-console
+      throw new Error('Invalid markup passed to compareHTML');
+    }
+    if (ignoreUI) {
+      Array.from(container.querySelectorAll('.ql-ui')).forEach(node => {
+        node.remove();
+      });
+    }
     return container;
   });
   let ignoredAttributes = ['width', 'height', 'data-row', 'contenteditable'];
@@ -101,6 +114,7 @@ function compareNodes(node1, node2, ignoredAttributes = []) {
   return null;
 }
 
+/* eslint-disable-next-line react/no-this-in-sfc */
 function initialize(klass, html, container = this.container, options = {}) {
   if (typeof html === 'object') {
     container.innerHTML = html.html;

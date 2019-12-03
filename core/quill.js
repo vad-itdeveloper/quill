@@ -12,6 +12,7 @@ import Theme from './theme';
 const debug = logger('quill');
 
 const globalRegistry = new Parchment.Registry();
+Parchment.ParentBlot.uiClass = 'ql-ui';
 
 class Quill {
   static debug(limit) {
@@ -101,11 +102,13 @@ class Quill {
       }
     });
     this.emitter.on(Emitter.events.SCROLL_UPDATE, (source, mutations) => {
-      const range = this.selection.lastRange;
-      const index = range && range.length === 0 ? range.index : undefined;
+      const oldRange = this.selection.lastRange;
+      const [newRange] = this.selection.getRange();
+      const selectionInfo =
+        oldRange && newRange ? { oldRange, newRange } : undefined;
       modify.call(
         this,
-        () => this.editor.update(null, mutations, index),
+        () => this.editor.update(null, mutations, selectionInfo),
         source,
       );
     });
@@ -121,6 +124,7 @@ class Quill {
     if (this.options.readOnly) {
       this.disable();
     }
+    this.allowReadOnlyEdits = false;
   }
 
   addContainer(container, refNode = null) {
@@ -154,6 +158,13 @@ class Quill {
     this.enable(false);
   }
 
+  editReadOnly(modifier) {
+    this.allowReadOnlyEdits = true;
+    const value = modifier();
+    this.allowReadOnlyEdits = false;
+    return value;
+  }
+
   enable(enabled = true) {
     this.scroll.enable(enabled);
     this.container.classList.toggle('ql-disabled', !enabled);
@@ -172,9 +183,8 @@ class Quill {
       () => {
         const range = this.getSelection(true);
         let change = new Delta();
-        if (range == null) {
-          return change;
-        } else if (this.scroll.query(name, Parchment.Scope.BLOCK)) {
+        if (range == null) return change;
+        if (this.scroll.query(name, Parchment.Scope.BLOCK)) {
           change = this.editor.formatLine(range.index, range.length, {
             [name]: value,
           });
@@ -339,7 +349,7 @@ class Quill {
   }
 
   isEnabled() {
-    return !this.container.classList.contains('ql-disabled');
+    return this.scroll.isEnabled();
   }
 
   off(...args) {
@@ -398,7 +408,7 @@ class Quill {
       this.selection.setRange(null, length || Quill.sources.API);
     } else {
       [index, length, , source] = overload(index, length, source);
-      this.selection.setRange(new Range(index, length), source);
+      this.selection.setRange(new Range(Math.max(0, index), length), source);
       if (source !== Emitter.sources.SILENT) {
         this.selection.scrollIntoView(this.scrollingContainer);
       }
@@ -535,7 +545,11 @@ function expandConfig(container, userConfig) {
 // Handle selection preservation and TEXT_CHANGE emission
 // common to modification APIs
 function modify(modifier, source, index, shift) {
-  if (!this.isEnabled() && source === Emitter.sources.USER) {
+  if (
+    !this.isEnabled() &&
+    source === Emitter.sources.USER &&
+    !this.allowReadOnlyEdits
+  ) {
     return new Delta();
   }
   let range = index == null ? null : this.getSelection();

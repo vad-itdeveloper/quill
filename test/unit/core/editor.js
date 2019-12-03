@@ -353,7 +353,56 @@ describe('Editor', function() {
         new Delta().insert({ image: '/assets/favicon.png' }, { italic: true }),
       );
       expect(this.container).toEqualHTML(
-        '<p><em><img src="/assets/favicon.png"></em>',
+        '<p><em><img src="/assets/favicon.png"></em></p>',
+      );
+    });
+
+    it('insert text before block embed', function() {
+      const editor = this.initialize(
+        Editor,
+        '<p>0123</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+      editor.applyDelta(new Delta().retain(5).insert('5678'));
+      expect(this.container).toEqualHTML(
+        '<p>0123</p><p>5678</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+    });
+
+    it('insert attributed text before block embed', function() {
+      const editor = this.initialize(
+        Editor,
+        '<p>0123</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+      editor.applyDelta(new Delta().retain(5).insert('5678', { bold: true }));
+      expect(this.container).toEqualHTML(
+        '<p>0123</p><p><strong>5678</strong></p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+    });
+
+    it('insert text with newline before block embed', function() {
+      const editor = this.initialize(
+        Editor,
+        '<p>0123</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+      editor.applyDelta(new Delta().retain(5).insert('5678\n'));
+      expect(this.container).toEqualHTML(
+        '<p>0123</p><p>5678</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+    });
+
+    it('insert attributed text with newline before block embed', function() {
+      const editor = this.initialize(
+        Editor,
+        '<p>0123</p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
+      );
+      editor.applyDelta(
+        new Delta()
+          .retain(5)
+          .insert('5678', { bold: true })
+          .insert('\n'),
+      );
+      expect(this.container).toEqualHTML(
+        '<p>0123</p><p><strong>5678</strong></p><iframe src="#" class="ql-video" frameborder="0" allowfullscreen="true"></iframe>',
       );
     });
 
@@ -615,6 +664,18 @@ describe('Editor', function() {
     it('text within tag', function() {
       const editor = this.initialize(Editor, '<p><a>a</a></p>');
       expect(editor.getHTML(0, 1)).toEqual('<a>a</a>');
+    });
+
+    it('escape html', function() {
+      const editor = this.initialize(Editor, '<p><br></p>');
+      editor.insertText(0, '<b>Test</b>');
+      expect(editor.getHTML(0, 11)).toEqual('&lt;b&gt;Test&lt;/b&gt;');
+    });
+
+    it('multiline code', function() {
+      const editor = this.initialize(Editor, '<p>0123</p><p>4567</p>');
+      editor.formatLine(0, 9, { 'code-block': 'javascript' });
+      expect(editor.getHTML(0, 9)).toEqual('<pre>0123\n4567</pre>');
     });
   });
 });

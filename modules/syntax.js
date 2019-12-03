@@ -6,9 +6,9 @@ import Module from '../core/module';
 import { blockDelta } from '../blots/block';
 import BreakBlot from '../blots/break';
 import CursorBlot from '../blots/cursor';
-import TextBlot from '../blots/text';
+import TextBlot, { escapeText } from '../blots/text';
 import CodeBlock, { CodeBlockContainer } from '../formats/code';
-import { traverse } from '../modules/clipboard';
+import { traverse } from './clipboard';
 
 const TokenAttributor = new ClassAttributor('code-token', 'hljs', {
   scope: Scope.INLINE,
@@ -65,18 +65,6 @@ class SyntaxCodeBlock extends CodeBlock {
 
   static register() {} // Syntax module will register
 
-  delta() {
-    if (this.cache.delta == null) {
-      const delta = super.delta();
-      this.cache.delta = delta.compose(
-        new Delta().retain(delta.length(), {
-          [CodeToken.blotName]: null,
-        }),
-      );
-    }
-    return this.cache.delta;
-  }
-
   format(name, value) {
     if (name === this.statics.blotName && value) {
       this.domNode.setAttribute('data-language', value);
@@ -124,7 +112,7 @@ class SyntaxCodeBlockContainer extends CodeBlockContainer {
     if (forced || this.forceNext || this.cachedText !== text) {
       if (text.trim().length > 0 || this.cachedText == null) {
         const oldDelta = this.children.reduce((delta, child) => {
-          return delta.concat(blockDelta(child));
+          return delta.concat(blockDelta(child, false));
         }, new Delta());
         const delta = highlight(text, language);
         oldDelta.diff(delta).reduce((index, { retain, attributes }) => {
@@ -238,18 +226,7 @@ class Syntax extends Module {
 
   highlightBlot(text, language = 'plain') {
     if (language === 'plain') {
-      return text
-        .replace(/[&<>"']/g, s => {
-          // https://lodash.com/docs#escape
-          const entityMap = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;',
-          };
-          return entityMap[s];
-        })
+      return escapeText(text)
         .split('\n')
         .reduce((delta, line, i) => {
           if (i !== 0) {
