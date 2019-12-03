@@ -7,8 +7,8 @@ class VideoFile extends BlockEmbed {
   static create(value) {
     const node = super.create(value);
     node.setAttribute('src', this.sanitize(value));
-    node.setAttribute('width', '100%');
-		node.setAttribute('height', '100%');
+    node.setAttribute('width', '50%');
+		node.setAttribute('height', '50%');
 		node.setAttribute('controls', true);
     return node;
   }
